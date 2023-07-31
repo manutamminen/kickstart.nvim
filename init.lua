@@ -169,6 +169,10 @@ require('lazy').setup({
   {
   'jalvesaq/Nvim-R'
   },
+  {
+  'jpalardy/vim-slime'
+  },
+
 }, {})
 
 -- [[ Setting options ]]
@@ -479,10 +483,25 @@ cmp.setup {
   },
 }
 
--- Additional keybindings
 
-vim.keymap.set({'n', 'v'}, 'ö', '$')
-vim.keymap.set('i', 'kj', '<ESC>')
+-- Helper functions
+
+local on_attach_custom = function(client, bufnr)
+  local function buf_set_option(name, value)
+    vim.api.nvim_buf_set_option(bufnr, name, value)
+  end
+  buf_set_option('omnifunc', 'v:lua.MiniCompletion.completefunc_lsp')
+  client.resolved_capabilities.document_formatting = false
+end
+
+
+function StartREPL(repl)
+  vim.cmd('terminal ' .. repl)
+  local term_id = vim.b.terminal_job_id
+  vim.cmd('wincmd p')
+  vim.b.slime_config = { jobid = tostring(term_id) }
+end
+
 
 
 -- R keybindings
@@ -500,9 +519,24 @@ vim.api.nvim_create_autocmd({"FileType", "BufEnter"},
   })
 
 
--- Additional setup
+require('lspconfig').r_language_server.setup({
+  on_attach = on_attach_custom,
+  -- Debounce "textDocument/didChange" notifications because they are slowly
+  -- processed (seen when going through completion list with `<C-N>`)
+  flags = { debounce_text_changes = 150 },
+})
 
-vim.o.relativenumber = true
+-- Python keybindings
+
+vim.api.nvim_create_autocmd({"FileType", "BufEnter"},
+  { pattern = "*.py",
+    callback = function()
+      vim.keymap.set('n', 'tt', ':vsplit<bar>:lua StartREPL("ipython")<CR><C-w>H')
+    end
+})
+
+-- Python (pyright) ===========================================================
+require('lspconfig').pyright.setup({ on_attach = on_attach_custom })
 
 
 -- Run Julia LSP
@@ -516,24 +550,26 @@ require'lspconfig'.julials.setup{
     end
 }
 
--- R (r_language_server) ======================================================
-local on_attach_custom = function(client, bufnr)
-  local function buf_set_option(name, value)
-    vim.api.nvim_buf_set_option(bufnr, name, value)
-  end
-  buf_set_option('omnifunc', 'v:lua.MiniCompletion.completefunc_lsp')
-  client.resolved_capabilities.document_formatting = false
-end
 
-require'lspconfig'.r_language_server.setup({
-  on_attach = on_attach_custom,
-  -- Debounce "textDocument/didChange" notifications because they are slowly
-  -- processed (seen when going through completion list with `<C-N>`)
-  flags = { debounce_text_changes = 150 },
+vim.api.nvim_create_autocmd({"FileType", "BufEnter"},
+  { pattern = "*.jl",
+    callback = function()
+      vim.keymap.set('n', 'tt', ':vsplit<bar>:lua StartREPL("/Applications/Julia-1.9.app/Contents/Resources/julia/bin/julia")<CR><C-w>H')
+    end
 })
 
--- Python (pyright) ===========================================================
-require'lspconfig'.pyright.setup({ on_attach = on_attach_custom })
+
+-- VIM-Slime config
+vim.g.slime_target = 'neovim'
+vim.g.slime_python_ipython = 1
+
+-- Additional setup
+vim.o.relativenumber = true
+
+-- Additional keybindings
+vim.keymap.set({'n', 'v'}, 'ö', '$')
+vim.keymap.set('i', 'kj', '<ESC>')
+vim.keymap.set('t', '<Esc>', [[<C-\><C-n>]])
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
